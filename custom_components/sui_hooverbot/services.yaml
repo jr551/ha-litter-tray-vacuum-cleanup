@@ -1,0 +1,26 @@
+skip:
+  name: Skip a scheduled litter-box cleanup
+  description: >-
+    Mark one exact bridge-correlated Sui job as skipped. This is intended for
+    the trusted family-reaction bridge or an explicit local automation.
+  fields:
+    entry_id:
+      name: Sui entry ID
+      required: true
+      selector:
+        text:
+    job_id:
+      name: Sui job ID
+      required: true
+      selector:
+        text:
+    reaction_event_id:
+      name: Reaction event ID
+      required: true
+      selector:
+        text:
+    reaction:
+      name: Skip reaction
+      required: true
+      selector:
+        text:

@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite3
+*.db
+*.jsonl
+*.log
+state.json
+audit.jsonl
+backups/
+
+# One-off private deployment migration helpers are not part of the release.
+hermes/ensure_whatsapp_group_metadata_patch.py
+hermes/migrate_family_chat_id.py

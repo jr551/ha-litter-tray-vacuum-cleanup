@@ -1,0 +1,34 @@
+#!/bin/sh
+set -eu
+
+serial="${ANDROID_SERIAL:?Set ANDROID_SERIAL to the dedicated phone's adb serial}"
+accessibility_service="com.danielealbano.androidremotecontrolmcp.debug/com.danielealbano.androidremotecontrolmcp.services.accessibility.McpAccessibilityService"
+/usr/bin/adb start-server
+
+while true; do
+  /usr/bin/adb -s "$serial" wait-for-device
+  enabled_services=$(/usr/bin/adb -s "$serial" shell settings get secure enabled_accessibility_services 2>/dev/null | tr -d '\r')
+  case ":$enabled_services:" in
+    *":$accessibility_service:"*) ;;
+    *)
+      if [ -z "$enabled_services" ] || [ "$enabled_services" = "null" ]; then
+        enabled_services="$accessibility_service"
+      else
+        enabled_services="$enabled_services:$accessibility_service"
+      fi
+      /usr/bin/adb -s "$serial" shell settings put secure enabled_accessibility_services "$enabled_services" || true
+      ;;
+  esac
+  # MIUI can leave the service selected while independently switching the
+  # accessibility master flag off. Restore both parts on every health loop.
+  /usr/bin/adb -s "$serial" shell settings put secure accessibility_enabled 1 || true
+  /usr/bin/adb -s "$serial" forward tcp:18080 tcp:8080 || true
+  if ! /usr/bin/curl -sS --max-time 2 http://127.0.0.1:18080/ -o /dev/null; then
+    /usr/bin/adb -s "$serial" shell am start \
+      -n com.danielealbano.androidremotecontrolmcp.debug/com.danielealbano.androidremotecontrolmcp.services.mcp.AdbServiceTrampolineActivity \
+      --es action start >/dev/null 2>&1 || true
+    sleep 2
+    /usr/bin/adb -s "$serial" forward tcp:18080 tcp:8080 || true
+  fi
+  sleep 10
+done

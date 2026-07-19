@@ -1,0 +1,22 @@
+[Unit]
+Description=Neutral family message and WhatsApp reaction bridge
+After=network-online.target hermes-gateway.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/family-reaction-bridge.env
+ExecStart=/usr/local/lib/family-reaction-bridge/family_reaction_bridge.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+StateDirectory=family-reaction-bridge
+StateDirectoryMode=0700
+ReadWritePaths=/var/lib/family-reaction-bridge
+UMask=0077
+
+[Install]
+WantedBy=default.target

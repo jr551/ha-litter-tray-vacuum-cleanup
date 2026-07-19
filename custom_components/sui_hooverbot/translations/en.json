@@ -1,0 +1,25 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sui the Hooverbot",
+        "description": "Schedule the fixed litter-box cleanup after a MiniNook counter increase. The family bridge only transports the opt-out notification and exact reaction callback.",
+        "data": {
+          "counter_entity_id": "Cat-litter counter entity",
+          "vacuum_entity_id": "Xiaomi Android vacuum entity",
+          "bridge_url": "Family bridge URL",
+          "bridge_token": "Family bridge token",
+          "cleanup_delay_seconds": "Cleanup delay (seconds)",
+          "reaction_grace_seconds": "Reaction grace period (seconds)",
+          "max_lateness_seconds": "Maximum late start window (seconds)"
+        }
+      }
+    },
+    "error": {
+      "invalid_input": "Check the entity IDs, bridge URL/token, and timing values."
+    },
+    "abort": {
+      "already_configured": "This Sui counter, vacuum, and bridge combination is already configured."
+    }
+  }
+}
