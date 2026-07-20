@@ -43,6 +43,9 @@ class SuiStatusSensor(SuiEntity, SensorEntity):
             "zone_name": FIXED_ZONE_NAME,
             "cat_litter_count": data.get("counter"),
             "pending_jobs": data.get("pending_jobs", 0),
+            "control_backend": data.get("control_backend"),
+            "map_camera_entity_id": data.get("map_camera_entity_id"),
+            "litter_zone_approved": data.get("litter_zone_approved", False),
         }
         if data.get("next_job") is not None:
             attrs["next_job"] = data["next_job"]

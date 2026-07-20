@@ -1,11 +1,9 @@
 # Sui the Hooverbot
 
-Sui is a native Home Assistant custom integration. This workspace stages it
-for direct installation beside the Xiaomi component; a dedicated repository
-containing only `custom_components/sui_hooverbot/` can later be published as a
-HACS integration. It owns the litter-tray trigger, durable countdown, skip
-decision, and fixed Xiaomi service calls. The family bridge is only an opaque
-message/reaction transport; it never schedules or controls the vacuum.
+Sui is a native Home Assistant custom integration. It owns the litter-tray
+trigger, durable countdown, skip decision, and one explicitly approved direct
+Dreame zone call. The family bridge is only an opaque message/reaction
+transport; it never schedules or controls the vacuum.
 
 ## Behaviour
 
@@ -20,10 +18,11 @@ message/reaction transport; it never schedules or controls the vacuum.
    Its family message states the actual 10-minute-30-second scheduled start.
    At that time it checks the bridge one final time immediately before the
    only physical zone-start call.
-5. If still active, Sui calls only the existing
-   `xiaomi_android_vacuum.refresh_map` and `xiaomi_android_vacuum.start_zone`
-   services. The latter always uses `zone_name: litter_box`, a fresh map
-   generation, and a persisted idempotency key.
+5. If still active, Sui calls only
+   `dreame_vacuum.vacuum_request_map` and
+   `dreame_vacuum.vacuum_clean_zone`. The latter always uses the one bounded,
+   visually approved `litter_box` rectangle, one pass, and Standard suction.
+   An absent or unapproved rectangle never moves the vacuum.
 
 The `sensor.sui_the_hooverbot_status` entity shows the schedule state; the
 `binary_sensor.sui_the_hooverbot_needs_attention` entity reports an ambiguous
@@ -77,7 +76,7 @@ signature is HMAC-SHA256 over
 bridge bearer token as its key. Sui accepts only a matching, fresh callback
 (five-minute window), then still deduplicates `reaction_event_id`.
 
-Immediately before it calls `start_zone`, Sui asks the bridge:
+Immediately before it calls the direct zone service, Sui asks the bridge:
 
 ```http
 GET /v1/messages/<event_key>
@@ -93,18 +92,18 @@ starts the vacuum.
 
 - No bridge acknowledgement: `notification_uncertain`; no retry and no robot
   movement.
-- No fresh Xiaomi map or an occupied vacuum: safe retry only before the
+- No calibrated direct map, non-sweeping mode, vacuum error, or occupied
+  vacuum: safe retry only before the
   physical request and only within the configured lateness window.
 - Job too late: `missed`; never start later.
 - Bridge unavailable/ambiguous at final check: `transport_unavailable`; never
   start.
-- Once `start_zone` is attempted: any failure becomes `outcome_unknown`; it is
+- Once `vacuum_clean_zone` is attempted: any failure becomes `outcome_unknown`; it is
   never retried automatically.
 
 ## Direct staged installation
 
-This multi-component workspace is not itself a HACS repository. This folder is
-staged for direct installation beside the existing Xiaomi component at:
+Install this folder at:
 
 ```text
 /config/custom_components/sui_hooverbot/
@@ -112,9 +111,10 @@ staged for direct installation beside the existing Xiaomi component at:
 
 After Home Assistant restarts, add **Sui the Hooverbot** through
 **Settings → Devices & services → Add integration**. Its UI form defaults to
-the established MiniNook counter and Xiaomi vacuum entity. For HACS, publish a
-dedicated repository with this `custom_components/sui_hooverbot/` tree as its
-only custom integration, then add that repository in HACS.
+the established MiniNook counter, direct Dreame vacuum, and current-map
+camera. The zone approval checkbox is deliberately separate from the
+coordinates. Existing entries migrate from the retired Android entity to the
+direct entity with motion disabled until a rectangle is explicitly approved.
 
 ## Local verification
 

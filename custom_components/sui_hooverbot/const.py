@@ -13,13 +13,19 @@ CONF_BRIDGE_URL: Final = "bridge_url"
 CONF_BRIDGE_TOKEN: Final = "bridge_token"
 CONF_COUNTER_ENTITY_ID: Final = "counter_entity_id"
 CONF_VACUUM_ENTITY_ID: Final = "vacuum_entity_id"
+CONF_MAP_CAMERA_ENTITY_ID: Final = "map_camera_entity_id"
+CONF_LITTER_ZONE: Final = "litter_zone"
+CONF_LITTER_ZONE_APPROVED: Final = "litter_zone_approved"
 CONF_WEBHOOK_ID: Final = "webhook_id"
 CONF_CLEANUP_DELAY_SECONDS: Final = "cleanup_delay_seconds"
 CONF_REACTION_GRACE_SECONDS: Final = "reaction_grace_seconds"
 CONF_MAX_LATENESS_SECONDS: Final = "max_lateness_seconds"
 
 DEFAULT_COUNTER_ENTITY_ID: Final = "sensor.mininook_excretion_times_day"
-DEFAULT_VACUUM_ENTITY_ID: Final = "vacuum.xiaomi_robot_vacuum_x20"
+DEFAULT_VACUUM_ENTITY_ID: Final = "vacuum.xiaomi_robot_vacuum_x20_2"
+DEFAULT_MAP_CAMERA_ENTITY_ID: Final = "camera.xiaomi_robot_vacuum_x20_map"
+DEFAULT_LITTER_ZONE: Final = ""
+DEFAULT_LITTER_ZONE_APPROVED: Final = False
 DEFAULT_CLEANUP_DELAY_SECONDS: Final = 600
 DEFAULT_REACTION_GRACE_SECONDS: Final = 30
 DEFAULT_MAX_LATENESS_SECONDS: Final = 120
@@ -36,10 +42,15 @@ EVENT_JOB_UPDATED: Final = f"{DOMAIN}_job_updated"
 EVENT_SKIP: Final = f"{DOMAIN}_skip"
 
 SERVICE_SKIP: Final = "skip"
+SERVICE_CONFIGURE_LITTER_ZONE: Final = "configure_litter_zone"
 
-XIAOMI_DOMAIN: Final = "xiaomi_android_vacuum"
-XIAOMI_REFRESH_MAP_SERVICE: Final = "refresh_map"
-XIAOMI_START_ZONE_SERVICE: Final = "start_zone"
+DREAME_DOMAIN: Final = "dreame_vacuum"
+DREAME_REQUEST_MAP_SERVICE: Final = "vacuum_request_map"
+DREAME_CLEAN_ZONE_SERVICE: Final = "vacuum_clean_zone"
+DREAME_STANDARD_SUCTION_LEVEL: Final = 1
+DREAME_CLEANING_MODE: Final = "sweeping"
 FIXED_ZONE_NAME: Final = "litter_box"
+
+LEGACY_ANDROID_VACUUM_ENTITY_ID: Final = "vacuum.xiaomi_robot_vacuum_x20"
 
 SKIP_REACTIONS: Final = frozenset({"⏭", "❌", "🛑"})

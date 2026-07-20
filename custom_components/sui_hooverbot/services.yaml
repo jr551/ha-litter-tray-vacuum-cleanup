@@ -24,3 +24,26 @@ skip:
       required: true
       selector:
         text:
+
+configure_litter_zone:
+  name: Configure the fixed litter-box zone
+  description: >-
+    Persist one bounded native Dreame rectangle for Sui. Motion remains
+    fail-closed unless the exact rectangle is explicitly approved.
+  fields:
+    entry_id:
+      name: Sui entry ID
+      required: true
+      selector:
+        text:
+    litter_zone:
+      name: Native Dreame rectangle
+      required: true
+      example: "[600, -2100, 2300, -800]"
+      selector:
+        object:
+    litter_zone_approved:
+      name: Rectangle visually approved
+      required: true
+      selector:
+        boolean:

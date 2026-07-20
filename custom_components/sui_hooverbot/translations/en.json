@@ -3,16 +3,19 @@
     "step": {
       "user": {
         "title": "Sui the Hooverbot",
-        "description": "Schedule the fixed litter-box cleanup after a MiniNook counter increase. The family bridge only transports the opt-out notification and exact reaction callback.",
+        "description": "Schedule one approved direct Dreame litter-box cleanup after a MiniNook counter increase. The family bridge only transports the opt-out notification and exact reaction callback.",
         "data": {
           "counter_entity_id": "Cat-litter counter entity",
-          "vacuum_entity_id": "Xiaomi Android vacuum entity",
+          "vacuum_entity_id": "Direct Dreame vacuum entity",
+          "map_camera_entity_id": "Direct Dreame map camera",
+          "litter_zone": "Native litter-box rectangle (x0,y0,x1,y1)",
+          "litter_zone_approved": "I visually verified this exact rectangle",
           "bridge_url": "Family bridge URL",
           "bridge_token": "Family bridge token",
           "cleanup_delay_seconds": "Cleanup delay (seconds)",
           "reaction_grace_seconds": "Reaction grace period (seconds)",
           "max_lateness_seconds": "Maximum late start window (seconds)"
-        }
+      }
       }
     },
     "error": {
@@ -20,6 +23,27 @@
     },
     "abort": {
       "already_configured": "This Sui counter, vacuum, and bridge combination is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Sui direct vacuum settings",
+        "description": "The fixed rectangle is the only scheduled motion target. Leave approval off to keep Sui fail-closed.",
+        "data": {
+          "counter_entity_id": "Cat-litter counter entity",
+          "vacuum_entity_id": "Direct Dreame vacuum entity",
+          "map_camera_entity_id": "Direct Dreame map camera",
+          "litter_zone": "Native litter-box rectangle (x0,y0,x1,y1)",
+          "litter_zone_approved": "I visually verified this exact rectangle",
+          "cleanup_delay_seconds": "Cleanup delay (seconds)",
+          "reaction_grace_seconds": "Reaction grace period (seconds)",
+          "max_lateness_seconds": "Maximum late start window (seconds)"
+        }
+      }
+    },
+    "error": {
+      "invalid_input": "Check the direct entity IDs, approved rectangle, and timing values."
     }
   }
 }

@@ -148,7 +148,10 @@ class SuiModelTests(unittest.TestCase):
         data = validation.normalise_config_input(
             {
                 "counter_entity_id": "sensor.mininook_excretion_times_day",
-                "vacuum_entity_id": "vacuum.xiaomi_robot_vacuum_x20",
+                "vacuum_entity_id": "vacuum.xiaomi_robot_vacuum_x20_2",
+                "map_camera_entity_id": "camera.xiaomi_robot_vacuum_x20_map",
+                "litter_zone": "600,-2100,2300,-800",
+                "litter_zone_approved": True,
                 "bridge_url": "https://family-bridge.example/",
                 "bridge_token": "test-token",
                 "cleanup_delay_seconds": "600",
@@ -159,9 +162,11 @@ class SuiModelTests(unittest.TestCase):
         self.assertEqual(data["bridge_url"], "https://family-bridge.example")
         self.assertEqual(data["bridge_token"], "test-token")
         self.assertEqual(data["cleanup_delay_seconds"], 600)
+        self.assertEqual(data["litter_zone"], [600, -2100, 2300, -800])
+        self.assertTrue(data["litter_zone_approved"])
         self.assertEqual(
             validation.schedule_identity(data),
-            "sensor.mininook_excretion_times_day:vacuum.xiaomi_robot_vacuum_x20",
+            "sensor.mininook_excretion_times_day:vacuum.xiaomi_robot_vacuum_x20_2",
         )
 
         for bad_url in (
@@ -200,6 +205,42 @@ class SuiModelTests(unittest.TestCase):
                     **data,
                     "cleanup_delay_seconds": "600.0",
                 }
+            )
+
+    def test_direct_litter_zone_requires_explicit_bounded_approval(self) -> None:
+        self.assertEqual(
+            validation.normalise_litter_zone([600, -2100, 2300, -800]),
+            [600, -2100, 2300, -800],
+        )
+        self.assertEqual(validation.normalise_litter_zone("", allow_empty=True), [])
+        for bad_zone in (
+            [600, -2100, 600, -800],
+            [600, -2100, 2300],
+            [600.5, -2100, 2300, -800],
+            [0, 0, 20_000, 20_000],
+            [False, -2100, 2300, -800],
+        ):
+            with self.assertRaises(ValueError):
+                validation.normalise_litter_zone(bad_zone)
+
+        safe_unapproved = validation.normalise_config_input(
+            {
+                "counter_entity_id": "sensor.mininook_excretion_times_day",
+                "vacuum_entity_id": "vacuum.xiaomi_robot_vacuum_x20_2",
+                "map_camera_entity_id": "camera.xiaomi_robot_vacuum_x20_map",
+                "litter_zone": "",
+                "litter_zone_approved": False,
+                "bridge_url": "https://family-bridge.example",
+                "bridge_token": "test-token",
+                "cleanup_delay_seconds": 600,
+                "reaction_grace_seconds": 30,
+                "max_lateness_seconds": 120,
+            }
+        )
+        self.assertEqual(safe_unapproved["litter_zone"], [])
+        with self.assertRaises(ValueError):
+            validation.normalise_config_input(
+                {**safe_unapproved, "litter_zone_approved": True}
             )
 
     def test_callback_authentication_binds_timestamp_and_raw_body(self) -> None:

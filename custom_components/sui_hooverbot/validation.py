@@ -11,10 +11,51 @@ from .const import (
     CONF_BRIDGE_URL,
     CONF_CLEANUP_DELAY_SECONDS,
     CONF_COUNTER_ENTITY_ID,
+    CONF_LITTER_ZONE,
+    CONF_LITTER_ZONE_APPROVED,
+    CONF_MAP_CAMERA_ENTITY_ID,
     CONF_MAX_LATENESS_SECONDS,
     CONF_REACTION_GRACE_SECONDS,
     CONF_VACUUM_ENTITY_ID,
 )
+
+
+def normalise_litter_zone(value: Any, *, allow_empty: bool = False) -> list[int]:
+    """Validate one bounded Dreame rectangle in native millimetre coordinates."""
+    if isinstance(value, str):
+        raw_values: list[Any] = [part.strip() for part in value.split(",") if part.strip()]
+    elif isinstance(value, (list, tuple)):
+        raw_values = list(value)
+    elif value is None:
+        raw_values = []
+    else:
+        raise ValueError("Litter zone must contain four coordinates")
+    if not raw_values and allow_empty:
+        return []
+    if len(raw_values) != 4 or any(isinstance(item, bool) for item in raw_values):
+        raise ValueError("Litter zone must contain four integer coordinates")
+    try:
+        zone = [int(item) for item in raw_values]
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Litter zone must contain four integer coordinates") from exc
+    if any(str(item).strip() != str(number) for item, number in zip(raw_values, zone)):
+        raise ValueError("Litter zone must contain four integer coordinates")
+    x0, y0, x1, y1 = zone
+    if any(abs(number) > 50_000 for number in zone):
+        raise ValueError("Litter zone coordinates are outside the safe map bounds")
+    width = x1 - x0
+    height = y1 - y0
+    if width < 200 or height < 200 or width > 10_000 or height > 10_000:
+        raise ValueError("Litter zone edges must be between 200 and 10000 millimetres")
+    if width * height > 50_000_000:
+        raise ValueError("Litter zone is too large")
+    return zone
+
+
+def litter_zone_text(value: Any) -> str:
+    """Render stored coordinates for the text-based Home Assistant form."""
+    zone = normalise_litter_zone(value, allow_empty=True)
+    return ",".join(str(number) for number in zone)
 
 
 def normalize_bridge_url(value: str) -> str:
@@ -61,9 +102,18 @@ def normalise_config_input(raw: Mapping[str, Any]) -> dict[str, Any]:
     token = str(raw.get(CONF_BRIDGE_TOKEN) or "").strip()
     if not token:
         raise ValueError("Bridge token is required")
+    approved = raw.get(CONF_LITTER_ZONE_APPROVED, False)
+    if not isinstance(approved, bool):
+        raise ValueError("Litter zone approval must be an explicit checkbox")
+    zone = normalise_litter_zone(raw.get(CONF_LITTER_ZONE), allow_empty=not approved)
     return {
         CONF_COUNTER_ENTITY_ID: _entity_id(raw.get(CONF_COUNTER_ENTITY_ID), "sensor"),
         CONF_VACUUM_ENTITY_ID: _entity_id(raw.get(CONF_VACUUM_ENTITY_ID), "vacuum"),
+        CONF_MAP_CAMERA_ENTITY_ID: _entity_id(
+            raw.get(CONF_MAP_CAMERA_ENTITY_ID), "camera"
+        ),
+        CONF_LITTER_ZONE: zone,
+        CONF_LITTER_ZONE_APPROVED: approved,
         CONF_BRIDGE_URL: normalize_bridge_url(str(raw.get(CONF_BRIDGE_URL) or "")),
         CONF_BRIDGE_TOKEN: token,
         CONF_CLEANUP_DELAY_SECONDS: _positive_seconds(

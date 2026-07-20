@@ -28,21 +28,25 @@ from .bridge import (
 from .const import (
     CONF_CLEANUP_DELAY_SECONDS,
     CONF_COUNTER_ENTITY_ID,
+    CONF_LITTER_ZONE,
+    CONF_LITTER_ZONE_APPROVED,
+    CONF_MAP_CAMERA_ENTITY_ID,
     CONF_MAX_LATENESS_SECONDS,
     CONF_REACTION_GRACE_SECONDS,
     CONF_VACUUM_ENTITY_ID,
     CONF_WEBHOOK_ID,
     DEFAULT_RETRY_SECONDS,
+    DREAME_CLEANING_MODE,
+    DREAME_CLEAN_ZONE_SERVICE,
+    DREAME_DOMAIN,
+    DREAME_REQUEST_MAP_SERVICE,
+    DREAME_STANDARD_SUCTION_LEVEL,
     DOMAIN,
     EVENT_JOB_UPDATED,
     EVENT_SKIP,
-    FIXED_ZONE_NAME,
     MAX_PENDING_JOBS,
     MAX_WEBHOOK_BYTES,
     SKIP_REACTIONS,
-    XIAOMI_DOMAIN,
-    XIAOMI_REFRESH_MAP_SERVICE,
-    XIAOMI_START_ZONE_SERVICE,
 )
 from .coordinator import SuiCoordinator
 from .model import (
@@ -63,6 +67,7 @@ from .model import (
     valid_identifier,
 )
 from .store import SuiScheduleStore
+from .validation import normalise_litter_zone
 
 
 class SuiRuntime:
@@ -95,6 +100,23 @@ class SuiRuntime:
     @property
     def vacuum_entity_id(self) -> str:
         return str(self.entry.data[CONF_VACUUM_ENTITY_ID])
+
+    @property
+    def map_camera_entity_id(self) -> str:
+        return str(self.entry.data[CONF_MAP_CAMERA_ENTITY_ID])
+
+    @property
+    def litter_zone_approved(self) -> bool:
+        return self.entry.data.get(CONF_LITTER_ZONE_APPROVED) is True
+
+    @property
+    def litter_zone(self) -> list[int] | None:
+        if not self.litter_zone_approved:
+            return None
+        try:
+            return normalise_litter_zone(self.entry.data.get(CONF_LITTER_ZONE))
+        except ValueError:
+            return None
 
     @property
     def webhook_id(self) -> str:
@@ -278,6 +300,9 @@ class SuiRuntime:
                     in {"notification_uncertain", "outcome_unknown", "transport_unavailable"}
                 )
             ),
+            "control_backend": DREAME_DOMAIN,
+            "map_camera_entity_id": self.map_camera_entity_id,
+            "litter_zone_approved": self.litter_zone is not None,
         }
 
     async def _commit_locked(self, job: dict[str, Any] | None = None) -> None:
@@ -584,26 +609,51 @@ class SuiRuntime:
         state = self.hass.states.get(self.vacuum_entity_id)
         if state is None or state.state.lower() not in {"idle", "docked"}:
             return False
-        return not bool(state.attributes.get("needs_attention"))
+        attributes = state.attributes
+        if attributes.get("needs_attention") or attributes.get("has_error"):
+            return False
+        if attributes.get("faults"):
+            return False
+        error = str(attributes.get("error") or "No error").strip().lower()
+        if error not in {"no error", "none"}:
+            return False
+        cleaning_mode = str(attributes.get("cleaning_mode") or "").strip().lower()
+        return cleaning_mode == DREAME_CLEANING_MODE
 
     def _fresh_map_generation(self) -> str | None:
-        state = self.hass.states.get(self.vacuum_entity_id)
-        if state is None:
+        state = self.hass.states.get(self.map_camera_entity_id)
+        if state is None or state.state.lower() in {"unknown", "unavailable"}:
             return None
-        generation = state.attributes.get("map_generation")
-        if not isinstance(generation, str) or not generation or len(generation) > 512:
+        calibration = state.attributes.get("calibration_points")
+        if not isinstance(calibration, list) or len(calibration) < 3:
             return None
-        return generation
+        generation = f"{state.state}:{state.last_updated.isoformat()}"
+        return generation if len(generation) <= 512 else None
 
     async def _dispatch_locked(self, job: dict[str, Any]) -> None:
         """Prepare the map, final-check the bridge, then make one zone request."""
+        zone = self.litter_zone
+        if zone is None:
+            job.update(
+                status="transport_unavailable",
+                last_error="litter_zone_not_approved",
+                updated_at=iso_utc(self._now()),
+            )
+            await self._commit_locked(job)
+            return
+        if not self.hass.services.has_service(DREAME_DOMAIN, DREAME_REQUEST_MAP_SERVICE):
+            await self._retry_or_miss_locked(job, "direct_map_service_unavailable")
+            return
+        if not self.hass.services.has_service(DREAME_DOMAIN, DREAME_CLEAN_ZONE_SERVICE):
+            await self._retry_or_miss_locked(job, "direct_zone_service_unavailable")
+            return
         if not self._vacuum_is_ready():
             await self._retry_or_miss_locked(job, "vacuum_not_ready")
             return
         try:
             await self.hass.services.async_call(
-                XIAOMI_DOMAIN,
-                XIAOMI_REFRESH_MAP_SERVICE,
+                DREAME_DOMAIN,
+                DREAME_REQUEST_MAP_SERVICE,
                 {"entity_id": self.vacuum_entity_id},
                 blocking=True,
             )
@@ -660,13 +710,13 @@ class SuiRuntime:
         await self._commit_locked(job)
         try:
             await self.hass.services.async_call(
-                XIAOMI_DOMAIN,
-                XIAOMI_START_ZONE_SERVICE,
+                DREAME_DOMAIN,
+                DREAME_CLEAN_ZONE_SERVICE,
                 {
                     "entity_id": self.vacuum_entity_id,
-                    "zone_name": FIXED_ZONE_NAME,
-                    "map_generation": generation,
-                    "idempotency_key": str(job["idempotency_key"]),
+                    "zone": zone,
+                    "repeats": 1,
+                    "suction_level": DREAME_STANDARD_SUCTION_LEVEL,
                 },
                 blocking=True,
             )

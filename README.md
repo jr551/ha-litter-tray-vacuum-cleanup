@@ -1,122 +1,84 @@
-# Xiaomi Android Vacuum Bridge
+# Sui the Hooverbot
 
-This is a local, deterministic Home Assistant integration for the Xiaomi Robot
-Vacuum X20+ when its only practical control surface is Xiaomi Home on a
-dedicated Android phone.
+Sui is a Home Assistant custom integration for one safe, repeatable cat-litter
+cleanup workflow. It reacts to a genuine MiniNook litter counter increase,
+notifies the family, honours a narrow reaction-based skip window, and then
+uses the direct Dreame/Xiaomi cloud integration to sweep one explicitly
+approved native map rectangle.
 
-It is intentionally not a free-form computer-use agent. The Android gateway
-contains one allowlisted workflow (`xiaomi-x20-zone-v1`), named zones, fixed
-screen assertions, map freshness checks, a phone mutex, and at-most-once job
-handling. Normal Home Assistant operation does not consume an LLM/API call.
+The retired Android/Xiaomi Home gesture gateway is intentionally absent. The
+generic Android MCP forwarder remains in `gateway/android-mcp-forward` for
+unrelated phone-control projects, and the neutral family reaction bridge
+remains in `hermes/` because Sui still uses it for notifications and opt-outs.
 
-## What it provides
+## Safety model
 
-- `vacuum.xiaomi_robot_vacuum_x20` with observed Xiaomi state only.
-- Connectivity, needs-attention, workflow, last-job, latest-Android-notification,
-  and map-image entities.
-- `xiaomi_android_vacuum.refresh_map` to capture a current map preview.
-- `xiaomi_android_vacuum.start_zone` for one allowlisted named zone or one/two
-  previewed XY rectangles.
-- A local Lovelace map widget with drag-to-draw, dry-run preview, and a
-  two-click start confirmation.
-- A Home Assistant persistent notification and event when Xiaomi itself reports
-  a stuck/error condition.
-- A privacy-filtered Android notification source that interrupts the normal
-  five-minute idle poll, records X20+ events in Home Assistant, and never
-  exposes notifications from other apps or Xiaomi devices.
+- A first counter observation establishes a baseline; it cannot trigger an old
+  cat visit.
+- Daytime events schedule one cleanup after ten minutes plus the configured
+  final reaction grace.
+- Events from 22:00 inclusive to 06:00 exclusive coalesce into one 06:00 run.
+- Sui persists the job before sending a family notification.
+- Only ⏭️, ❌, or 🛑 on the exact message can skip the exact job.
+- Immediately before motion, Sui refreshes the direct map, checks the bridge
+  again, requires a docked/idle error-free vacuum in Sweeping mode, and
+  revalidates the approved rectangle.
+- A missing/unapproved rectangle, unavailable map/service, ambiguous bridge
+  result, vacuum fault, or changed cleaning mode fails closed.
+- Once the direct zone call is attempted, an ambiguous result is never retried
+  automatically.
 
-The current named routine is `litter_box`. Its coordinates are stored on the
-gateway, not trusted from a dashboard request.
+The currently proven litter cleanup rectangle is configured in Home Assistant,
+not committed to this public repository. Home Assistant stores it only after
+an administrator explicitly marks that exact rectangle as visually approved.
 
-## Architecture
+## Home Assistant installation
 
-```text
-Home Assistant custom integration
-       │  bearer token + HA container IP allowlist
-       ▼
-android-vacuum-gateway (phone container, port 8091)
-       │  named Android MCP workflow; no prompts
-       ▼
-Android Remote Control MCP → Xiaomi Home → X20+
-```
-
-The gateway accepts only `state`, filtered `notifications`, `map`, and
-`zone_clean` requests. A zone job
-requires a recently captured map generation, a bounded idempotency key, the
-approved X20 map anchors, and a clean-ready Xiaomi screen. It persists audit
-state without storing screenshots or bearer tokens.
-
-Passive status reads never disturb an unrelated foreground app. While a
-recently observed cleanup is active, the gateway may reopen Xiaomi Home only
-from the Android launcher to continue polling; it never does so when another
-app is foregrounded.
-
-Copy `gateway/config.example.json` outside the repository, generate a strong
-bearer token, and set `ANDROID_SERIAL` for `gateway/android-mcp-forward` to the
-dedicated phone's ADB serial. Do not commit the resulting configuration,
-tokens, runtime state, screenshots, or audit logs. The supplied systemd unit
-expects an unprivileged `android-vacuum` service account.
-
-## Deployment layout
+The HACS-compatible component lives at:
 
 ```text
-custom_components/xiaomi_android_vacuum/  HACS-ready backend integration
-custom_components/sui_hooverbot/           staged direct-install cat-litter scheduler
-gateway/                                  systemd Android bridge service
-card/xiaomi-android-vacuum-map.js         local dashboard resource
-hermes/                                   neutral family-message/reaction transport bridge
+custom_components/sui_hooverbot/
 ```
 
-The backend can be installed as a HACS custom integration after this repository
-is published to a GitHub repository. HACS requires a repository it can fetch;
-it cannot install the private local working tree directly. The frontend card is
-deliberately a standalone local resource for now, because HACS frontend plugins
-are packaged as a separate repository.
+Install that directory under `/config/custom_components/sui_hooverbot/`,
+restart Home Assistant, and add **Sui the Hooverbot** from
+**Settings → Devices & services**. Configure:
 
-## Home Assistant configuration
+- the MiniNook counter entity;
+- the direct `dreame_vacuum` vacuum entity;
+- the direct Dreame current-map camera;
+- the native `x0,y0,x1,y1` litter rectangle;
+- explicit visual approval of that rectangle;
+- the private family bridge URL/token and timing values.
 
-```yaml
-xiaomi_android_vacuum:
-  - base_url: http://android-vacuum-gateway.local:8091
-    token: !secret xiaomi_android_vacuum_gateway_token
-```
+The integration exposes:
 
-Add the map card resource through **Settings → Dashboards → Resources**:
+- `sensor.sui_the_hooverbot_status`;
+- `binary_sensor.sui_the_hooverbot_needs_attention`;
+- `sui_hooverbot.skip` for one exact pending job;
+- `sui_hooverbot.configure_litter_zone` for an authenticated administrator to
+  persist or revoke the fixed rectangle.
 
-```yaml
-url: /local/xiaomi-android-vacuum-map.js
-type: module
-```
+See [the component documentation](custom_components/sui_hooverbot/README.md)
+for the complete bridge contract and failure semantics.
 
-Then use this minimal card configuration:
+## Preserved reusable pieces
 
-```yaml
-type: custom:xiaomi-android-vacuum-map
-entity: vacuum.xiaomi_robot_vacuum_x20
-map_image_entity: image.xiaomi_robot_vacuum_x20_map
-```
+`gateway/android-mcp-forward` is the generic persistent ADB/MCP recovery loop.
+It is intentionally independent of Sui and contains no vacuum coordinates or
+Xiaomi cleanup workflow.
 
-Use **Refresh map** before either previewing or starting a zone. The card learns
-the allowlisted named zones from the integration, so they are not duplicated in
-dashboard YAML.
+`hermes/family_reaction_bridge.py` is a neutral, authenticated notification and
+reaction transport. It knows the consumer/job correlation contract but does
+not schedule or control physical devices.
 
 ## Verification
 
-Run the dependency-free gateway tests with:
-
 ```sh
 python3 -m unittest discover -s tests -v
+ruff check custom_components/sui_hooverbot tests/test_sui_hooverbot_model.py
+python3 -m py_compile custom_components/sui_hooverbot/*.py
 ```
 
-The supplied dry-run path verifies the full Android/Xiaomi screen workflow
-without tapping the zone tool or starting the robot.
-
-## Sui the Hooverbot
-
-[Sui the Hooverbot](custom_components/sui_hooverbot/README.md) is a native
-Home Assistant custom integration staged for direct installation beside the
-Xiaomi component. It persists cat-litter jobs in Home Assistant, offers the
-family a reaction-based opt-out through an opaque bridge, and otherwise invokes
-only the fixed `litter_box` routine after ten minutes plus a short reaction
-grace period. It does not use an LLM. To publish it through HACS later, place
-only its component in a dedicated repository.
+The integration uses no LLM or paid API call during normal Home Assistant
+operation.
